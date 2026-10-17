@@ -78,7 +78,7 @@ struct HistoryList: View {
         if model.history.isEmpty {
             VStack(spacing: 8) {
                 Text("還沒有掃描紀錄").font(.headline)
-                Text("下載的檔案會先進「小黑屋」,掃描通過才放行到「下載項目」。")
+                Text("下載的檔案會先關進「小黑屋」,掃描通過才送回你原本存的資料夾。")
                     .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -104,7 +104,7 @@ struct HistoryRow: View {
     private var location: String {
         if let q = outcome.quarantinedPath, FileManager.default.fileExists(atPath: q) { return "隔離區" }
         if !FileManager.default.fileExists(atPath: outcome.path) { return "已移走" }
-        return model.isInHolding(outcome.path) ? "小黑屋" : "已放行"
+        return model.isInHolding(outcome.path) ? "小黑屋" : "已放行到「\(URL(fileURLWithPath: outcome.path).deletingLastPathComponent().lastPathComponent)」"
     }
 
     var body: some View {
@@ -134,7 +134,7 @@ struct HistoryRow: View {
                     Button("隔離") { model.quarantine(outcome.id) }
                     Button("重新掃描") { model.rescan(outcome.id) }
                 case "隔離區":
-                    Button("還原到下載項目") { model.release(outcome.id) }
+                    Button("還原到原本的資料夾") { model.release(outcome.id) }
                 default:
                     EmptyView()
                 }
@@ -244,8 +244,8 @@ struct SettingsPane: View {
             Picker("掃描模型", selection: $model.model) {
                 ForEach(DownloadGuardController.models, id: \.id) { Text($0.label).tag($0.id) }
             }
-            Toggle("「下載項目」裡的新下載自動關進小黑屋", isOn: $model.interceptDownloads)
-            Text("也可以直接把瀏覽器的下載位置設成 ~/小黑屋。只有帶 macOS 下載標記的檔案會被攔下(瀏覽器、AirDrop、郵件附件);用 curl 等指令下載的不會。")
+            Toggle("新下載自動關進小黑屋(不管存在哪個資料夾)", isOn: $model.interceptDownloads)
+            Text("監看整個家目錄。只有帶 macOS 下載標記(下載網址)的新檔案會被攔下:瀏覽器、AirDrop、郵件附件;用 curl、git 等指令下載的不會。資源庫、垃圾桶、隱藏資料夾與 node_modules 之類的建置資料夾不監看。掃描通過後送回原本的資料夾。")
                 .font(.caption).foregroundStyle(.secondary)
             Toggle("判定為惡意時自動移到隔離區", isOn: $model.autoQuarantine)
             Toggle("安全放行時也通知", isOn: $model.notifySafe)

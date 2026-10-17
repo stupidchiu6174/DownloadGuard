@@ -5,8 +5,8 @@ import DownloadGuardCore
 
 /// 下載掃描(小黑屋)。
 ///
-/// 流程:新下載進「下載項目」→ 關進 ~/小黑屋 → 白名單?直接放行
-///      → 否則背景 Claude Code 掃描 → 安全就放行回「下載項目」;可疑留在小黑屋等你決定;惡意移到隔離區。
+/// 流程:任何資料夾裡出現新下載 → 關進 ~/小黑屋(記下原本的資料夾)→ 白名單?直接放行
+///      → 否則背景 Claude Code 掃描 → 安全就送回原本的資料夾;可疑留在小黑屋等你決定;惡意移到隔離區。
 @MainActor
 public final class DownloadGuardController: NSObject, ObservableObject {
     public static let shared = DownloadGuardController()
@@ -30,7 +30,7 @@ public final class DownloadGuardController: NSObject, ObservableObject {
     @Published public var notifySafe: Bool { didSet { defaults.set(notifySafe, forKey: Key.notifySafe) } }
     /// 判定惡意時自動移到隔離區
     @Published public var autoQuarantine: Bool { didSet { defaults.set(autoQuarantine, forKey: Key.autoQuarantine) } }
-    /// 「下載項目」裡出現新下載時自動關進小黑屋(沒改瀏覽器下載位置也有效)
+    /// 家目錄任何資料夾裡出現新下載時自動關進小黑屋(瀏覽器存到哪裡都有效)
     @Published public var interceptDownloads: Bool { didSet { defaults.set(interceptDownloads, forKey: Key.intercept) } }
 
     public static let models: [(id: String, label: String)] = [
@@ -48,7 +48,7 @@ public final class DownloadGuardController: NSObject, ObservableObject {
     @Published public private(set) var lastMessage: String?
 
     private var holdingWatcher: DownloadWatcher?
-    private var downloadsWatcher: DownloadWatcher?
+    private var interceptor: DownloadInterceptor?
 
     private override init() {
         defaults.register(defaults: [Key.model: ScanRunner.defaultModel, Key.autoQuarantine: true,
@@ -81,22 +81,25 @@ public final class DownloadGuardController: NSObject, ObservableObject {
         holding.start(includeExisting: true)   // App 沒開的時候進來的也要掃
         holdingWatcher = holding
 
-        let downloads = DownloadWatcher(directory: GuardPaths.downloads) { [weak self] url in self?.intercept(url) }
-        downloads.start()
-        downloadsWatcher = downloads
+        let interceptor = DownloadInterceptor(root: FileManager.default.homeDirectoryForCurrentUser,
+                                              excluded: DownloadInterceptor.defaultExclusions()) { [weak self] url in
+            self?.intercept(url)
+        }
+        interceptor.start()
+        self.interceptor = interceptor
     }
 
     func stop() {
         holdingWatcher?.stop(); holdingWatcher = nil
-        downloadsWatcher?.stop(); downloadsWatcher = nil
+        interceptor?.stop(); interceptor = nil
         queued.removeAll()
     }
 
     // MARK: - 小黑屋
 
-    /// 「下載項目」裡的新下載(有 macOS 隔離標記、還沒放行過)→ 關進小黑屋
+    /// 剛下載完成的項目(DownloadInterceptor 已確認有下載標記、還沒放行過)→ 關進小黑屋
     private func intercept(_ url: URL) {
-        guard interceptDownloads, HoldingPen.hasQuarantine(url), !HoldingPen.isReleased(url) else { return }
+        guard interceptDownloads else { return }
         do {
             try HoldingPen.admit(url)
         } catch {
@@ -145,7 +148,8 @@ public final class DownloadGuardController: NSObject, ObservableObject {
         case .safe where stillHere:
             if let dest = try? HoldingPen.release(url) { outcome.path = dest.path }
             if notifySafe {
-                notify(title: "已放行:\(outcome.name)", body: outcome.summary, id: outcome.id, category: nil)
+                let folder = URL(fileURLWithPath: outcome.path).deletingLastPathComponent().lastPathComponent
+                notify(title: "已放行到「\(folder)」:\(outcome.name)", body: outcome.summary, id: outcome.id, category: nil)
             }
         case .malicious where stillHere && autoQuarantine:
             if let dest = try? HoldingPen.quarantine(url) { outcome.quarantinedPath = dest.path }
@@ -328,7 +332,7 @@ public final class DownloadGuardController: NSObject, ObservableObject {
         let release = UNNotificationAction(identifier: Action.release, title: "放行")
         let quarantine = UNNotificationAction(identifier: Action.quarantine, title: "隔離", options: [.destructive])
         let accept = UNNotificationAction(identifier: Action.accept, title: "加入白名單並放行")
-        let restore = UNNotificationAction(identifier: Action.restore, title: "還原到下載項目")
+        let restore = UNNotificationAction(identifier: Action.restore, title: "還原到原本的資料夾")
         let show = UNNotificationAction(identifier: Action.show, title: "顯示紀錄", options: [.foreground])
         center.setNotificationCategories([
             UNNotificationCategory(identifier: Category.review, actions: [release, quarantine, show], intentIdentifiers: []),

@@ -161,18 +161,106 @@ final class DownloadGuardCoreTests: XCTestCase {
 
     // MARK: - 小黑屋
 
-    func testReleaseMarksFileAndAvoidsNameClash() throws {
+    func testReleaseGoesBackToOriginFolderAndAvoidsNameClash() throws {
         let holding = dir.appendingPathComponent("hold", isDirectory: true)
+        let project = dir.appendingPathComponent("專案A", isDirectory: true)
         let downloads = dir.appendingPathComponent("dl", isDirectory: true)
-        try FileManager.default.createDirectory(at: downloads, withIntermediateDirectories: true)
-        try Data("old".utf8).write(to: downloads.appendingPathComponent("a.pdf"))
+        try FileManager.default.createDirectory(at: project, withIntermediateDirectories: true)
+        try Data("new".utf8).write(to: project.appendingPathComponent("a.pdf"))
 
-        let src = try write("a.pdf", "new")
-        let held = try HoldingPen.admit(src, holding: holding)
+        let held = try HoldingPen.admit(project.appendingPathComponent("a.pdf"), holding: holding)
+        XCTAssertEqual(held.deletingLastPathComponent().lastPathComponent, "hold")
+        XCTAssertEqual(HoldingPen.origin(of: held)?.lastPathComponent, "專案A")
         XCTAssertFalse(HoldingPen.isReleased(held))
-        let released = try HoldingPen.release(held, to: downloads)
+
+        try Data("other".utf8).write(to: project.appendingPathComponent("a.pdf"))   // 同名檔案已經在原處
+        let released = try HoldingPen.release(held, fallback: downloads)
+        XCTAssertEqual(released.deletingLastPathComponent().lastPathComponent, "專案A", "送回原本的資料夾")
         XCTAssertEqual(released.lastPathComponent, "a 2.pdf")
         XCTAssertTrue(HoldingPen.isReleased(released))
+        XCTAssertNil(HoldingPen.origin(of: released))
+    }
+
+    func testReleaseFallsBackWhenOriginFolderIsGone() throws {
+        let project = dir.appendingPathComponent("gone", isDirectory: true)
+        let downloads = dir.appendingPathComponent("dl", isDirectory: true)
+        try FileManager.default.createDirectory(at: project, withIntermediateDirectories: true)
+        try Data("x".utf8).write(to: project.appendingPathComponent("b.zip"))
+        let held = try HoldingPen.admit(project.appendingPathComponent("b.zip"), holding: dir.appendingPathComponent("hold"))
+        try FileManager.default.removeItem(at: project)
+        let released = try HoldingPen.release(held, fallback: downloads)
+        XCTAssertEqual(released.deletingLastPathComponent().lastPathComponent, "dl")
+    }
+
+    func testExecutePermissionRemovedWhileHeldAndRestoredOnRelease() throws {
+        let script = try write("run.command", "#!/bin/sh\necho hi\n")
+        chmod(script.path, 0o755)
+        let held = try HoldingPen.admit(script, holding: dir.appendingPathComponent("hold"))
+        XCTAssertFalse(FileManager.default.isExecutableFile(atPath: held.path), "小黑屋裡不能執行")
+        let released = try HoldingPen.release(held, fallback: dir)
+        XCTAssertTrue(FileManager.default.isExecutableFile(atPath: released.path), "放行後還原權限")
+    }
+
+    // MARK: - 全家目錄攔截
+
+    func testInterceptorCandidateRules() {
+        let home = DownloadWatcher.realURL(dir)
+        let i = DownloadInterceptor(root: home, excluded: [home.appendingPathComponent("小黑屋"),
+                                                           home.appendingPathComponent("Library")]) { _ in }
+        let h = home.path
+        XCTAssertEqual(i.candidate(for: "\(h)/Documents/專案A/tool.zip"), "\(h)/Documents/專案A/tool.zip")
+        XCTAssertEqual(i.candidate(for: "\(h)/Downloads/Foo.app/Contents/MacOS/Foo"), "\(h)/Downloads/Foo.app",
+                       "套件內部的檔案歸到最外層的套件")
+        XCTAssertNil(i.candidate(for: "\(h)/Downloads/movie.mp4.crdownload"))
+        XCTAssertNil(i.candidate(for: "\(h)/小黑屋/a.zip"))
+        XCTAssertNil(i.candidate(for: "\(h)/Library/Caches/x.bin"))
+        XCTAssertNil(i.candidate(for: "\(h)/Documents/app/node_modules/pkg/index.js"))
+        XCTAssertNil(i.candidate(for: "\(h)/.cache/huggingface/model.bin"))
+        XCTAssertNil(i.candidate(for: "/somewhere/else/file"))
+    }
+
+    func testFreshDownloadNeedsRecentQuarantineAndSourceURL() throws {
+        let url = try write("setup.dmg", "x")
+        func quarantine(_ date: Date) {
+            let value = String(format: "0083;%llx;Chrome;", UInt64(date.timeIntervalSince1970))
+            setxattr(url.path, "com.apple.quarantine", value, value.utf8.count, 0, 0)
+        }
+        quarantine(Date())
+        XCTAssertFalse(DownloadInterceptor.isFreshDownload(url, window: 900), "沒有下載網址:沙盒 App 自己存的檔案")
+        try setWhereFroms(url, ["https://example.com/setup.dmg"])
+        XCTAssertTrue(DownloadInterceptor.isFreshDownload(url, window: 900))
+        quarantine(Date().addingTimeInterval(-3600))
+        XCTAssertFalse(DownloadInterceptor.isFreshDownload(url, window: 900), "一小時前的舊下載被搬動,不算")
+        quarantine(Date())
+        HoldingPen.setString(url.path, HoldingPen.releasedAttribute, "1")
+        XCTAssertFalse(DownloadInterceptor.isFreshDownload(url, window: 900), "放行過的不再抓")
+    }
+
+    func testInterceptorCatchesDownloadSavedToAnyFolder() throws {
+        let home = dir!
+        let project = home.appendingPathComponent("Documents/專案A", isDirectory: true)
+        try FileManager.default.createDirectory(at: project, withIntermediateDirectories: true)
+        let caught = expectation(description: "download in a nested folder is caught")
+        var got: [String] = []
+        let i = DownloadInterceptor(root: home, excluded: []) { url in
+            got.append(url.lastPathComponent); caught.fulfill()
+        }
+        i.settleDelay = 0.3
+        i.start()
+        defer { i.stop() }
+
+        // 一般檔案(沒有下載標記):不抓
+        _ = try write("Documents/專案A/notes.txt", "mine")
+        // 模擬 Chrome:寫好暫存檔、加上標記,完成時改名
+        let temp = try write("Documents/專案A/tool.zip.crdownload", "PK")
+        let q = String(format: "0083;%llx;Chrome;", UInt64(Date().timeIntervalSince1970))
+        setxattr(temp.path, "com.apple.quarantine", q, q.utf8.count, 0, 0)
+        try setWhereFroms(temp, ["https://example.com/tool.zip"])
+        Thread.sleep(forTimeInterval: 0.3)
+        try FileManager.default.moveItem(at: temp, to: project.appendingPathComponent("tool.zip"))
+        wait(for: [caught], timeout: 10)
+        Thread.sleep(forTimeInterval: 1.0)
+        XCTAssertEqual(got, ["tool.zip"])
     }
 
     // MARK: - 監看
