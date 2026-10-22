@@ -15,7 +15,12 @@ public final class DownloadGuardWindowController {
                              backing: .buffered, defer: false)
             w.title = "下載掃描"
             w.isReleasedWhenClosed = false
-            w.contentView = NSHostingView(rootView: DownloadGuardView(model: .shared))
+            // 視窗大小交給 AppKit:預設 sizingOptions 會讓 SwiftUI 跟著內容(掃描狀態、相對時間)改視窗大小,
+            // 在 layout 途中改 frame 會觸發「Update Constraints 次數超過上限」的例外而閃退
+            let host = NSHostingView(rootView: DownloadGuardView(model: .shared))
+            host.sizingOptions = []
+            w.contentView = host
+            w.contentMinSize = NSSize(width: 640, height: 440)
             w.center()
             window = w
         }
