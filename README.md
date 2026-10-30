@@ -6,6 +6,10 @@ macOS 下載掃描。新下載的檔案先關進 `~/小黑屋`,由背景的 Clau
 - 背景的 Claude 只拿得到 `liri-scan` 這個 MCP 伺服器的工具,不能用 Bash 或寫檔,檔案內容一律當成不可信的資料。
 - 判斷僅供參考,不能取代防毒軟體。
 
+## Windows 版
+
+`windows/` 是用 Go 重寫的 Windows 版(Zone.Identifier、Authenticode、系統匣 + 本機網頁),說明見 [windows/README.md](windows/README.md)。
+
 ## 需求
 
 - macOS 26 以上、Swift 6.2

@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>下載掃描</title>
+<style>
+:root {
+  --bg: #f6f6f7; --panel: #fff; --text: #1d1d1f; --muted: #6e6e73; --faint: #a1a1a6; --line: #e3e3e6;
+  --accent: #0a64d8; --green: #1f9d55; --orange: #d97706; --red: #d92d20; --gray: #8e8e93; --chip: #ececef;
+  --warn-bg: #fff4e5;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1c1c1e; --panel: #262628; --text: #f2f2f7; --muted: #a1a1a6; --faint: #6e6e73; --line: #3a3a3c;
+    --accent: #4c9bff; --green: #34c46a; --orange: #f5a524; --red: #ff5a4f; --gray: #98989d; --chip: #3a3a3c;
+    --warn-bg: #3a2c12;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 14px/1.5 "Segoe UI", "Microsoft JhengHei UI", "Microsoft JhengHei", system-ui, sans-serif; }
+header { position: sticky; top: 0; z-index: 2; background: var(--panel); border-bottom: 1px solid var(--line);
+  padding: 12px 20px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+header h1 { font-size: 16px; margin: 0 8px 0 0; font-weight: 600; }
+.status { color: var(--muted); display: flex; align-items: center; gap: 8px; }
+.spacer { flex: 1; }
+nav { display: flex; gap: 4px; padding: 10px 20px 0; max-width: 960px; margin: 0 auto; }
+nav button { border: 0; background: none; color: var(--muted); padding: 8px 14px; border-radius: 8px 8px 0 0;
+  font: inherit; cursor: pointer; border-bottom: 2px solid transparent; }
+nav button.on { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+main { max-width: 960px; margin: 0 auto; padding: 12px 20px 40px; }
+.msg { max-width: 960px; margin: 10px auto 0; padding: 8px 14px; background: var(--warn-bg); color: var(--orange);
+  border-radius: 8px; display: flex; gap: 10px; align-items: center; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
+.row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 46ch; }
+.chip { font-size: 12px; padding: 1px 8px; border-radius: 99px; background: var(--chip); }
+.small { font-size: 12px; color: var(--muted); }
+.tiny { font-size: 11px; color: var(--faint); }
+.summary { color: var(--muted); margin: 4px 0; }
+.reasons { margin: 2px 0 6px; padding-left: 18px; font-size: 12px; color: var(--muted); }
+.suggest { font-size: 12px; color: var(--accent); margin: 4px 0; }
+.actions { margin-top: 6px; }
+.b { display: inline-block; font: inherit; font-size: 13px; padding: 4px 12px; border-radius: 6px; border: 1px solid var(--line);
+  background: var(--panel); color: var(--text); cursor: pointer; }
+.b:hover { border-color: var(--accent); }
+.b.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.b.danger { color: var(--red); }
+.b:disabled { opacity: .5; cursor: default; }
+details.menu { position: relative; display: inline-block; }
+details.menu summary { list-style: none; }
+details.menu summary::-webkit-details-marker { display: none; }
+details.menu .pop { position: absolute; z-index: 3; top: 110%; left: 0; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 8px; padding: 4px; min-width: 220px; box-shadow: 0 6px 24px rgba(0,0,0,.15); }
+details.menu .pop button { display: block; width: 100%; text-align: left; border: 0; background: none; color: var(--text);
+  font: inherit; font-size: 13px; padding: 6px 10px; border-radius: 6px; cursor: pointer; }
+details.menu .pop button:hover { background: var(--chip); }
+.empty { text-align: center; padding: 60px 20px; color: var(--muted); }
+.empty h2 { color: var(--text); font-size: 17px; margin: 0 0 6px; }
+section.rules h3 { margin: 0; font-size: 15px; }
+.rule { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px dashed var(--line); }
+.rule code { flex: 1; font: 13px Consolas, "Cascadia Mono", monospace; word-break: break-all; }
+.rule button { border: 0; background: none; color: var(--red); cursor: pointer; font-size: 16px; }
+.add { display: flex; gap: 8px; margin-top: 8px; }
+input[type=text], select { flex: 1; font: inherit; padding: 5px 9px; border-radius: 6px; border: 1px solid var(--line);
+  background: var(--bg); color: var(--text); min-width: 0; }
+label.toggle { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; cursor: pointer; }
+label.toggle input { margin-top: 3px; }
+.switch { position: relative; width: 38px; height: 22px; flex: none; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.switch span { position: absolute; inset: 0; background: var(--gray); border-radius: 99px; transition: .15s; cursor: pointer; }
+.switch span::before { content: ""; position: absolute; width: 18px; height: 18px; left: 2px; top: 2px; background: #fff;
+  border-radius: 50%; transition: .15s; }
+.switch input:checked + span { background: var(--green); }
+.switch input:checked + span::before { transform: translateX(16px); }
+.spin { width: 12px; height: 12px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%;
+  animation: s 0.8s linear infinite; }
+@keyframes s { to { transform: rotate(360deg); } }
+.hidden { display: none !important; }
+@media (max-width: 560px) { header, nav, main { padding-left: 16px; padding-right: 16px; } .name { max-width: 24ch; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>下載掃描</h1>
+  <label class="switch" title="啟用下載掃描"><input type="checkbox" id="enabled"><span></span></label>
+  <div class="status" id="status"></div>
+  <div class="spacer"></div>
+  <button class="b" data-op="openHolding">打開小黑屋</button>
+</header>
+<div class="msg hidden" id="msg"><span id="msgText"></span><div class="spacer"></div><button class="b" data-op="dismiss">知道了</button></div>
+<nav>
+  <button data-tab="history" class="on">掃描紀錄</button>
+  <button data-tab="whitelist">白名單</button>
+  <button data-tab="settings">設定</button>
+</nav>
+<main>
+  <div id="tab-history"></div>
+  <div id="tab-whitelist" class="hidden"></div>
+  <div id="tab-settings" class="hidden"></div>
+</main>
+<script>
+"use strict";
+const token = (() => {
+  const m = location.hash.match(/t=([0-9a-f]+)/);
+  try {
+    if (m) { sessionStorage.setItem("dg-token", m[1]); history.replaceState(null, "", "/"); return m[1]; }
+    return sessionStorage.getItem("dg-token") || "";
+  } catch (e) { return m ? m[1] : ""; }
+})();
+let state = null;
+const cache = {};
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const colors = { safe: "var(--green)", unknown: "var(--gray)", suspicious: "var(--orange)", malicious: "var(--red)" };
+
+async function call(path, body) {
+  const r = await fetch(path, body === undefined ? { headers: { "X-Token": token } } : {
+    method: "POST", headers: { "X-Token": token, "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (r.status === 403) throw new Error("forbidden");
+  return r.json();
+}
+const act = (op, id = "", kind = "", value = "") => call("/api/action", { op, id, kind, value }).then(render);
+const setting = (patch) => call("/api/settings", patch).then(render);
+
+async function refresh() {
+  try { render(await call("/api/state")); }
+  catch (e) {
+    $("status").textContent = e.message === "forbidden"
+      ? "連線權杖失效,請從系統匣圖示重新打開這個頁面。" : "連不上 DownloadGuard(程式可能已經結束)。";
+  }
+}
+
+function once(key, value, fn) {
+  const json = JSON.stringify(value);
+  if (cache[key] === json) return;
+  cache[key] = json;
+  fn();
+}
+
+function render(s) {
+  state = s;
+  $("enabled").checked = s.settings.enabled;
+  let status = "";
+  if (s.scanning) status = `<div class="spin"></div>正在掃描 ${esc(s.scanning)}…` + (s.queued ? `(還有 ${s.queued} 個排隊)` : "");
+  else status = s.settings.enabled ? "待命中" : "已關閉";
+  $("status").innerHTML = status;
+  $("msg").classList.toggle("hidden", !s.lastMessage);
+  $("msgText").textContent = s.lastMessage || "";
+  once("history", s.history, renderHistory);
+  once("whitelist", s.whitelist, renderWhitelist);
+  once("settings", [s.settings, s.autostart, s.models], renderSettings);
+}
+
+function renderHistory() {
+  const el = $("tab-history");
+  if (!state.history.length) {
+    el.innerHTML = `<div class="empty"><h2>還沒有掃描紀錄</h2>下載的檔案會先關進「小黑屋」,掃描通過才送回你原本存的資料夾。</div>`;
+    return;
+  }
+  el.innerHTML = state.history.map((o) => {
+    const c = colors[o.verdict] || colors.unknown;
+    const reasons = (o.claude?.reasons || []).slice(0, 4);
+    const s = o.claude?.suggestion;
+    const sugLabel = s ? ({ domain: "網域 ", publisher: "發行者 ", sha256: "這個檔案(SHA-256)" }[s.kind] + (s.kind === "sha256" ? "" : s.value)) : "";
+    let buttons = "";
+    if (o.location === "holding") buttons += btn("release", o.id, "放行") + btn("quarantine", o.id, "隔離", "danger") + btn("rescan", o.id, "重新掃描");
+    if (o.location === "quarantine") buttons += btn("release", o.id, "還原到原本的資料夾");
+    if (s) buttons += btn("accept", o.id, "接受白名單建議", "primary");
+    const trust = [];
+    if (o.domainHost) trust.push(`<button data-op="trust" data-id="${o.id}" data-kind="domain">信任網域 ${esc(o.domainHost)}</button>`);
+    if (o.publisher) trust.push(`<button data-op="trust" data-id="${o.id}" data-kind="publisher">信任發行者 ${esc(o.publisher)}</button>`);
+    if (o.sha256) trust.push(`<button data-op="trust" data-id="${o.id}" data-kind="sha256">信任這個檔案(SHA-256)</button>`);
+    if (trust.length) buttons += `<details class="menu"><summary class="b" role="button">信任…</summary><div class="pop">${trust.join("")}</div></details>`;
+    if (o.location !== "gone") buttons += btn("reveal", o.id, "在檔案總管中顯示");
+    const cost = o.costUSD != null ? `<span class="tiny">$${o.costUSD.toFixed(3)}・${Math.round(o.durationSeconds)} 秒</span>` : "";
+    return `<div class="card">
+      <div class="row"><span class="dot" style="background:${c}"></span><span class="name" title="${esc(o.name)}">${esc(o.name)}</span>
+        <span class="small" style="color:${c}">${esc(o.verdictLabel)}</span><span class="chip">${esc(o.locationText)}</span>
+        <div class="spacer"></div><span class="small">${esc(o.ago)}</span></div>
+      <div class="summary">${esc(o.summary)}</div>
+      ${reasons.length && o.verdict !== "safe" ? `<ul class="reasons">${reasons.map((r) => `<li>${esc(r)}</li>`).join("")}</ul>` : ""}
+      ${s ? `<div class="suggest">Claude 建議加入白名單:${esc(sugLabel)}${s.reason ? "——" + esc(s.reason) : ""}</div>` : ""}
+      <div class="row actions">${buttons}<div class="spacer"></div>${cost}</div>
+    </div>`;
+  }).join("");
+}
+
+function btn(op, id, label, cls = "") { return `<button class="b ${cls}" data-op="${op}" data-id="${id}">${esc(label)}</button>`; }
+
+const sections = [
+  { kind: "domain", key: "domains", title: "網域", hint: "例如 microsoft.com(含子網域;比對下載網址與來源網頁)" },
+  { kind: "publisher", key: "publishers", title: "發行者", hint: "數位簽章有效、憑證受信任的軟體才會比對(例如 Microsoft Corporation)" },
+  { kind: "extension", key: "extensions", title: "副檔名", hint: "只對內容確實是文件或影音的檔案生效" },
+  { kind: "sha256", key: "sha256", title: "SHA-256", hint: "完全相同的檔案" },
+];
+
+function renderWhitelist() {
+  const w = state.whitelist;
+  $("tab-whitelist").innerHTML = `<p class="small">命中白名單的下載不經過 Claude,直接從小黑屋放行。</p>` + sections.map((sec) => `
+    <section class="card rules">
+      <h3>${sec.title}</h3><div class="small">${esc(sec.hint)}</div>
+      ${(w[sec.key] || []).map((v) => `<div class="rule"><code>${esc(v)}</code><button title="移除" data-op="wlRemove" data-kind="${sec.kind}" data-value="${esc(v)}">⊖</button></div>`).join("")}
+      <form class="add" data-kind="${sec.kind}"><input type="text" placeholder="新增…" aria-label="新增${sec.title}"><button class="b">加入</button></form>
+    </section>`).join("");
+}
+
+function renderSettings() {
+  const s = state.settings;
+  const toggle = (key, checked, label, hint = "") => `<label class="toggle"><input type="checkbox" data-setting="${key}" ${checked ? "checked" : ""}>
+    <div>${label}${hint ? `<div class="small">${hint}</div>` : ""}</div></label>`;
+  $("tab-settings").innerHTML = `
+    <div class="card">
+      <div class="row"><span style="min-width:6em">掃描模型</span><select id="model">${state.models.map((m) =>
+        `<option value="${m.id}" ${m.id === s.model ? "selected" : ""}>${esc(m.label)}</option>`).join("")}</select></div>
+      ${toggle("interceptDownloads", s.interceptDownloads, "新下載自動關進小黑屋(不管存在哪個資料夾)",
+        "監看整個使用者資料夾。只有帶 Windows 下載標記(Zone.Identifier,而且有下載網址)的新檔案會被攔下:瀏覽器、Outlook、Teams 存的檔案;用 curl、git 等指令下載的,或從 ZIP 解壓縮出來的不會。AppData、資源回收筒、隱藏資料夾與 node_modules 之類的建置資料夾不監看。掃描通過後送回原本的資料夾。")}
+      ${toggle("autoQuarantine", s.autoQuarantine, "判定為惡意時自動移到隔離區")}
+      ${toggle("notifySafe", s.notifySafe, "安全放行時也通知")}
+      ${toggle("autostart", state.autostart, "登入 Windows 時自動執行")}
+    </div>
+    <div class="card">
+      <h3 style="margin:0 0 4px;font-size:15px">讓 Claude Code 管理白名單</h3>
+      <div class="small">註冊後,你在 Claude Code 對話裡說「把 github.com 加進下載白名單」,Claude 就能直接修改。背景掃描的 Claude 只能提出建議,要你按一下才會生效。</div>
+      <div class="actions"><button class="b" data-op="registerMCP">註冊到 Claude Code</button></div>
+    </div>
+    <div class="card">
+      <h3 style="margin:0 0 6px;font-size:15px">資料夾</h3>
+      <div class="row"><button class="b" data-op="openHolding">打開小黑屋</button><button class="b" data-op="openQuarantine">打開隔離區</button><button class="b" data-op="openSupport">打開設定資料夾</button></div>
+    </div>`;
+}
+
+document.addEventListener("click", (e) => {
+  const tab = e.target.closest("[data-tab]");
+  if (tab) {
+    document.querySelectorAll("nav button").forEach((b) => b.classList.toggle("on", b === tab));
+    ["history", "whitelist", "settings"].forEach((t) => $("tab-" + t).classList.toggle("hidden", t !== tab.dataset.tab));
+    return;
+  }
+  const b = e.target.closest("[data-op]");
+  if (!b) return;
+  e.preventDefault();
+  b.closest("details")?.removeAttribute("open");
+  act(b.dataset.op, b.dataset.id || "", b.dataset.kind || "", b.dataset.value || "");
+});
+document.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const input = e.target.querySelector("input");
+  const v = input.value.trim();
+  if (v) act("wlAdd", "", e.target.dataset.kind, v);
+});
+document.addEventListener("change", (e) => {
+  if (e.target.id === "enabled") setting({ enabled: e.target.checked });
+  else if (e.target.id === "model") setting({ model: e.target.value });
+  else if (e.target.dataset.setting) setting({ [e.target.dataset.setting]: e.target.checked });
+});
+refresh();
+setInterval(refresh, 1500);
+</script>
+</body>
+</html>
