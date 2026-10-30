@@ -325,7 +325,8 @@ public final class DownloadGuardController: NSObject, ObservableObject {
     private var notificationsReady = false
 
     private func setUpNotifications() {
-        guard !notificationsReady else { return }
+        // 系統通知只有在 .app 裡才能用(swift run 的執行檔沒有 bundle id,一呼叫就會閃退)
+        guard !notificationsReady, Bundle.main.bundleIdentifier != nil else { return }
         notificationsReady = true
         let center = UNUserNotificationCenter.current()
         center.delegate = self
@@ -344,6 +345,7 @@ public final class DownloadGuardController: NSObject, ObservableObject {
     }
 
     private func notify(title: String, body: String, id: UUID?, category: String?) {
+        guard Bundle.main.bundleIdentifier != nil else { return }
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
