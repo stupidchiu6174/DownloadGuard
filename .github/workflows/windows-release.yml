@@ -1,10 +1,17 @@
-# 推送 windows-v* 標籤時編譯 Windows 版,建立 GitHub Release 並附上 zip
+# 編譯 Windows 版,建立 GitHub Release 並附上 zip。兩種觸發方式:
+#   - 推送 windows-v* 標籤
+#   - 在 Actions 頁面按「Run workflow」並填版本號(會在目前的 commit 建立 windows-v<版本> 標籤)
 name: Windows release
 
 on:
   push:
     tags: ["windows-v*"]
   workflow_dispatch:
+    inputs:
+      version:
+        description: "版本號(例如 0.1.0)"
+        required: true
+        default: "0.1.0"
 
 permissions:
   contents: write
@@ -12,6 +19,8 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event_name == 'workflow_dispatch' && format('windows-v{0}', inputs.version) || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -23,19 +32,18 @@ jobs:
         run: go test ./...
       - name: Build
         working-directory: windows
-        run: VERSION="${GITHUB_REF_NAME}" ./build.sh
+        run: VERSION="$TAG" ./build.sh
       - name: Upload build
         uses: actions/upload-artifact@v4
         with:
           name: DownloadGuard-windows
           path: windows/dist/*.zip
       - name: Release
-        if: startsWith(github.ref, 'refs/tags/')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" windows/dist/*.zip \
-            --title "DownloadGuard for Windows ${GITHUB_REF_NAME#windows-}" \
+          gh release create "$TAG" windows/dist/*.zip --target "$GITHUB_SHA" \
+            --title "DownloadGuard for Windows ${TAG#windows-}" \
             --notes-file - <<'NOTES'
           DownloadGuard 的 Windows 版(Go 重寫):新下載先關進 `%USERPROFILE%\小黑屋`,由背景的 Claude Code 掃描,安全才送回原本的資料夾。
 
@@ -50,5 +58,5 @@ jobs:
 
           ⚠️ 第一版,還沒在實際的 Windows 電腦上完整測過:系統匣、通知、資料夾監看、簽章檢查等 Windows 專屬功能請留意。
 
-          說明見 [windows/README.md](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/windows/README.md)。
+          說明見 [windows/README.md](https://github.com/${{ github.repository }}/blob/${{ env.TAG }}/windows/README.md)。
           NOTES
