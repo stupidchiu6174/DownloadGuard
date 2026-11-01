@@ -1,0 +1,62 @@
+# 編譯 Windows 版,建立 GitHub Release 並附上 zip。兩種觸發方式:
+#   - 推送 windows-v* 標籤
+#   - 在 Actions 頁面按「Run workflow」並填版本號(會在目前的 commit 建立 windows-v<版本> 標籤)
+name: Windows release
+
+on:
+  push:
+    tags: ["windows-v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "版本號(例如 0.1.0)"
+        required: true
+        default: "0.1.0"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event_name == 'workflow_dispatch' && format('windows-v{0}', inputs.version) || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: windows/go.mod
+          cache-dependency-path: windows/go.sum
+      - name: Test
+        working-directory: windows
+        run: go test ./...
+      - name: Build
+        working-directory: windows
+        run: VERSION="$TAG" ./build.sh
+      - name: Upload build
+        uses: actions/upload-artifact@v4
+        with:
+          name: DownloadGuard-windows
+          path: windows/dist/*.zip
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$TAG" windows/dist/*.zip --target "$GITHUB_SHA" \
+            --title "DownloadGuard for Windows ${TAG#windows-}" \
+            --notes-file - <<'NOTES'
+          DownloadGuard 的 Windows 版(Go 重寫):新下載先關進 `%USERPROFILE%\小黑屋`,由背景的 Claude Code 掃描,安全才送回原本的資料夾。
+
+          **下載**
+          - 一般電腦(Intel / AMD):`DownloadGuard-windows-amd64.zip`
+          - ARM 筆電(Surface Pro X、Snapdragon):`DownloadGuard-windows-arm64.zip`
+
+          **使用**
+          1. 解壓縮,`DownloadGuard.exe` 和 `liri-scan.exe` 放在同一個資料夾
+          2. 執行 `DownloadGuard.exe`。程式沒有數位簽章,SmartScreen 會擋,按「其他資訊 → 仍要執行」
+          3. 需要已登入的 Claude Code CLI
+
+          ⚠️ 第一版,還沒在實際的 Windows 電腦上完整測過:系統匣、通知、資料夾監看、簽章檢查等 Windows 專屬功能請留意。
+
+          說明見 [windows/README.md](https://github.com/${{ github.repository }}/blob/${{ env.TAG }}/windows/README.md)。
+          NOTES
